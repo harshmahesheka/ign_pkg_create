@@ -1,5 +1,8 @@
 import argparse
 import os
+import requests
+import yaml
+
 
 #Generates colcon.pkg for sourcing hooks
 def colcon_pkg_create():
@@ -26,45 +29,41 @@ def hooks_create():
 
 #Adds standard ignition package dependencies 
 def dependencies():
-    ign_gazebo_version = str(args.ignition_version[0])
-    ign_plugin_version = "1"
-    ign_cmake_version = "2"
+      ign_gazebo_version = str(args.ignition_version[0])
 
-    if ign_gazebo_version == "3":
-        ign_common_version = "3"
-        ign_math_version = "6"
-        ign_rendering_version = "3"
-        ign_transport_version = "8"
-        ign_msgs_version = "5"
-        ign_fuel_version = "4"
-    elif ign_gazebo_version == "7":
-        ign_common_version = "5"
-        ign_math_version = "7"
-        ign_rendering_version = "7"
-        ign_transport_version = "12"
-        ign_msgs_version = "9"
-        ign_fuel_version = "8"
-    else:
-        ign_common_version = "4"
-        ign_math_version = "6"
-        ign_rendering_version = "6"
-        ign_transport_version = "11"
-        ign_msgs_version = "8"
-        ign_fuel_version = "7"
-    dependencies_txt = (
-        f"find_package(ignition-cmake{ign_cmake_version} REQUIRED)\n"
-        f"find_package(ignition-gazebo{ign_gazebo_version} REQUIRED COMPONENTS gui)\n"
-        f"set(IGN_GAZEBO_VER ${{ignition-gazebo{ign_gazebo_version}_VERSION_MAJOR}})\n"
-        f"find_package(ignition-common{ign_common_version }  REQUIRED COMPONENTS graphics)\n"
-        f"set(IGN_COMMON_VER ${{ignition-common{ign_common_version}_VERSION_MAJOR}})\n"
-        f"find_package(ignition-fuel_tools{ign_fuel_version} REQUIRED)\n"
-        f"find_package(ignition-math{ign_math_version} REQUIRED)\n"
-        f"set(IGN_MATH_VER ${{ignition-math{ign_math_version}_VERSION_MAJOR}})\n"
-        f"find_package(ignition-rendering{ign_rendering_version} REQUIRED)\n"
-        f"set(IGN_RENDERING_VER ${{ignition-rendering{ign_rendering_version}_VERSION_MAJOR}})\n"
-    )
-
-    return dependencies_txt
+      #Fetches required ignition package version from internet based on user input
+      if ign_gazebo_version == "3":
+        dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-citadel.yaml")
+      elif ign_gazebo_version == "4":
+        dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-dome.yaml")
+      elif ign_gazebo_version == "5":
+        dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-edifice.yaml")
+    #   elif ign_gazebo_version == "7":
+    #     dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-garden.yaml")
+      else:
+        dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-fortress.yaml")
+      dependencies_yaml=yaml.safe_load(dependencies_file.content)
+      ign_plugin_version =dependencies_yaml['repositories']['ign-plugin']['version']
+      ign_cmake_version = dependencies_yaml['repositories']['ign-cmake']['version']
+      ign_common_version = dependencies_yaml['repositories']['ign-common']['version']
+      ign_math_version = dependencies_yaml['repositories']['ign-math']['version']
+      ign_rendering_version = dependencies_yaml['repositories']['ign-rendering']['version']
+      ign_transport_version = dependencies_yaml['repositories']['ign-transport']['version']
+      ign_msgs_version = dependencies_yaml['repositories']['ign-msgs']['version']
+      ign_fuel_version = dependencies_yaml['repositories']['ign-fuel-tools']['version']
+      ign_gazebo_version=dependencies_yaml['repositories']['ign-gazebo']['version']
+      dependencies_txt = (
+        f"find_package({ign_cmake_version} REQUIRED)\n"
+        f"find_package({ign_gazebo_version} REQUIRED COMPONENTS gui)\n"
+        f"set(IGN_GAZEBO_VER ${{{ign_gazebo_version}_VERSION_MAJOR}})\n"
+        f"find_package({ign_common_version }  REQUIRED COMPONENTS graphics)\n"
+        f"set(IGN_COMMON_VER ${{{ign_common_version}_VERSION_MAJOR}})\n"
+        f"find_package({ign_fuel_version} REQUIRED)\n"
+        f"find_package({ign_math_version} REQUIRED)\n"
+        f"set(IGN_MATH_VER ${{{ign_math_version}_VERSION_MAJOR}})\n"
+        f"find_package({ign_rendering_version} REQUIRED)\n"
+        f"set(IGN_RENDERING_VER ${{{ign_rendering_version}_VERSION_MAJOR}})\n")
+      return dependencies_txt
 
 #Creates CMakelists.txt file for package
 def CMakeLists_create():
