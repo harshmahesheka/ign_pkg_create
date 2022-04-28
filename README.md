@@ -1,6 +1,8 @@
 # Ignition Package Create
 A prototype project for creating base ignition packages.
 
+Other options for customising will be added and the project will be shifted from a python script to an ign subcommand.
+
 For testing clone the repo and run 
 
 ```python path/to/repo/ign_pkg_create.py --help ```
