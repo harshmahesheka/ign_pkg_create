@@ -9,6 +9,7 @@ def colcon_pkg_create():
     colcon_pkg_path = package_path + "/colcon.pkg"
     colcon_pkg = open(colcon_pkg_path, "w")
     colcon_pkg.write(
+        "#This will declare an environment hook which will be sourced for the package.\n"
          "{\n" 
         f'    "hooks": ["share/{args.name[0]}/hooks/hook.dsv"]\n' 
          "}"
@@ -21,6 +22,7 @@ def hooks_create():
     hooks_dsv_path = hooks_path + "/hook.dsv.in"
     hooks_dsv = open(hooks_dsv_path, "w")
     hooks_dsv.write(
+        "#This is a list of relative paths to declare additional scripts to be sourced.\n"
         "prepend-non-duplicate;IGN_GAZEBO_RESOURCE_PATH;@CMAKE_INSTALL_PREFIX@/share/@PROJECT_NAME@/models\n"
         "prepend-non-duplicate;IGN_GAZEBO_RESOURCE_PATH;@CMAKE_INSTALL_PREFIX@/share/@PROJECT_NAME@/worlds\n"
         "prepend-non-duplicate;IGN_GAZEBO_SYSTEM_PLUGIN_PATH;@CMAKE_INSTALL_PREFIX@/lib\n"
@@ -29,34 +31,32 @@ def hooks_create():
 
 #Adds standard ignition package dependencies 
 def dependencies():
-      ign_gazebo_version = str(args.ignition_version[0])
+      ignition_gazebo_version = str(args.ignition_version[0])
 
       #Fetches required ignition package version from internet based on user input
-      if ign_gazebo_version == "3":
+      if ignition_gazebo_version == "3":
         dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-citadel.yaml")
-      elif ign_gazebo_version == "4":
+      elif ignition_gazebo_version == "4":
         dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-dome.yaml")
-      elif ign_gazebo_version == "5":
+      elif ignition_gazebo_version == "5":
         dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-edifice.yaml")
-    #   elif ign_gazebo_version == "7":
+    #   elif ignition_gazebo_version == "7":
     #     dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-garden.yaml")
       else:
         dependencies_file = requests.get("https://raw.githubusercontent.com/ignition-tooling/gazebodistro/master/collection-fortress.yaml")
       dependencies_yaml=yaml.safe_load(dependencies_file.content)
-      ign_plugin_version =dependencies_yaml['repositories']['ign-plugin']['version']
-      ign_cmake_version = dependencies_yaml['repositories']['ign-cmake']['version']
-      ign_common_version = dependencies_yaml['repositories']['ign-common']['version']
-      ign_math_version = dependencies_yaml['repositories']['ign-math']['version']
-      ign_rendering_version = dependencies_yaml['repositories']['ign-rendering']['version']
-      ign_transport_version = dependencies_yaml['repositories']['ign-transport']['version']
-      ign_msgs_version = dependencies_yaml['repositories']['ign-msgs']['version']
-      ign_fuel_version = dependencies_yaml['repositories']['ign-fuel-tools']['version']
-      ign_gazebo_version=dependencies_yaml['repositories']['ign-gazebo']['version']
+      for dependencies in ['ign-plugin','ign-cmake','ign-common','ign-math','ign-rendering','ign-transport','ign-msgs','ign-gazebo']:
+          globals()[f'ign_{dependencies[4:]}_version']=dependencies_yaml['repositories'][dependencies]['version']
+          globals()[f'ign_{dependencies[4:]}_version']="ignition"+globals()[f'ign_{dependencies[4:]}_version'][3:]
+      ign_fuel_version="ignition-fuel_tools"+dependencies_yaml['repositories']['ign-fuel-tools']['version'][14:]
+
       dependencies_txt = (
+        "\n#This is a list of general packages on which your ignition package will depend,find_package function will find and source theses packages.\n" 
+        "#You can add or delete dependencies based on your requirement.\n\n" 
         f"find_package({ign_cmake_version} REQUIRED)\n"
         f"find_package({ign_gazebo_version} REQUIRED COMPONENTS gui)\n"
         f"set(IGN_GAZEBO_VER ${{{ign_gazebo_version}_VERSION_MAJOR}})\n"
-        f"find_package({ign_common_version }  REQUIRED COMPONENTS graphics)\n"
+        f"find_package({ign_common_version}  REQUIRED COMPONENTS graphics)\n"
         f"set(IGN_COMMON_VER ${{{ign_common_version}_VERSION_MAJOR}})\n"
         f"find_package({ign_fuel_version} REQUIRED)\n"
         f"find_package({ign_math_version} REQUIRED)\n"
@@ -69,17 +69,22 @@ def dependencies():
 def CMakeLists_create():
     CMakeLists_path = package_path + "/CMakeLists.txt"
     CMakeLists = open(CMakeLists_path, "w")
-    CMakeLists.write("cmake_minimum_required(VERSION 3.10.2 FATAL_ERROR)\n"
-                    f"project({args.name[0]})\n")
+
+    CMakeLists.write(
+        "#These lines will set minimum required version of cmake and declare the name of the project.\n"
+        "cmake_minimum_required(VERSION 3.10.2 FATAL_ERROR)\n\n"
+        f"project({args.name[0]})\n")
     if args.standard_dependencies[0] == "True":
         dependenices_txt = dependencies()
         CMakeLists.write(dependenices_txt)
     if args.package_type[0] == "advanced":
         CMakeLists.write(
+            "\n#These lines will copy-paste hook files into cmake binary directory for installation\n\n"
             "configure_file(\n"
             '      "hooks/hook.dsv.in"\n'
             '      "${CMAKE_CURRENT_BINARY_DIR}/hooks/hook.dsv" @ONLY'
             ")\n"
+            "\n#These will install directories with various resources along with above mentioned hook files.\n\n"
             "install(DIRECTORY\n"
             "      worlds\n"
             "      models\n"
@@ -89,17 +94,27 @@ def CMakeLists_create():
         )
 
     if args.built_type[0] == "ament_cmake":
-        CMakeLists.write("find_package(ament_cmake REQUIRED)\n")
-    CMakeLists.write("if(BUILD_TESTING)\n")
+        CMakeLists.write(   "\n#Since,the package is amnet dependent we will find and call ament_cmake.\n\n"
+                            "find_package(ament_cmake REQUIRED)\n")
+    CMakeLists.write("\n#These line will run tests for the package, if build testing is set to be TRUE\n"
+                     "#You can add your tests here\n\n"
+                     "if(BUILD_TESTING)\n")
     if args.built_type[0] == "ament_cmake":
-        CMakeLists.write("  find_package(ament_cmake_gtest REQUIRED)\n\n")
+        CMakeLists.write(
+            "  \n#ament_cmake_gtest will provide ability to add gtest-based tests in the ament buildsystem in CMake.\n\n"
+            "  find_package(ament_cmake_gtest REQUIRED)\n\n")
     CMakeLists.write(
         '  set("PROJECT_BINARY_PATH" ${CMAKE_CURRENT_BINARY_DIR})\n'
         '  set("PROJECT_SOURCE_PATH" ${CMAKE_CURRENT_SOURCE_DIR})\n\n'
         "endif()\n"
     )
     if args.built_type[0] == "ament_cmake":
-        CMakeLists.write("ament_package()\n")
+        
+        CMakeLists.write(
+            "\n#The project setup is done by ament_package().\n"   
+            "#It installs the package.xml, registers the package with the ament index, and installs config (and possibly target) files \n"   
+            "#for CMake so that it can be found by other packages using find_package.\n\n"      
+            "ament_package()\n")
 
 #Generates package.xml file if required
 def package_xml_create():
