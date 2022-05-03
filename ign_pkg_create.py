@@ -2,8 +2,8 @@ import argparse
 import os
 import requests
 import yaml
-
-
+from plugin import create_plugin 
+from executable import create_executable
 #Generates colcon.pkg for sourcing hooks
 def colcon_pkg_create():
     colcon_pkg_path = package_path + "/colcon.pkg"
@@ -22,7 +22,6 @@ def hooks_create():
     hooks_dsv_path = hooks_path + "/hook.dsv.in"
     hooks_dsv = open(hooks_dsv_path, "w")
     hooks_dsv.write(
-        "#This is a list of relative paths to declare additional scripts to be sourced.\n"
         "prepend-non-duplicate;IGN_GAZEBO_RESOURCE_PATH;@CMAKE_INSTALL_PREFIX@/share/@PROJECT_NAME@/models\n"
         "prepend-non-duplicate;IGN_GAZEBO_RESOURCE_PATH;@CMAKE_INSTALL_PREFIX@/share/@PROJECT_NAME@/worlds\n"
         "prepend-non-duplicate;IGN_GAZEBO_SYSTEM_PLUGIN_PATH;@CMAKE_INSTALL_PREFIX@/lib\n"
@@ -63,6 +62,11 @@ def dependencies():
         f"set(IGN_MATH_VER ${{{ign_math_version}_VERSION_MAJOR}})\n"
         f"find_package({ign_rendering_version} REQUIRED)\n"
         f"set(IGN_RENDERING_VER ${{{ign_rendering_version}_VERSION_MAJOR}})\n")
+      if args.add_plugin:
+            dependencies_txt=dependencies_txt+f"find_package({ign_plugin_version} REQUIRED)\n"
+            dependencies_txt=dependencies_txt+f"set(IGN_PLUGIN_VER ${{{ign_plugin_version}_VERSION_MAJOR}})\n"
+
+
       return dependencies_txt
 
 #Creates CMakelists.txt file for package
@@ -92,6 +96,40 @@ def CMakeLists_create():
             "      ${CMAKE_CURRENT_BINARY_DIR}/hooks\n"
             "      DESTINATION share/${PROJECT_NAME})\n"
         )
+    if args.add_plugin:
+        CMakeLists.write( "\n#These lines will add and install the example plugin.\n\n"
+                          "#add_library adds a library target to be built from the source files.\n"
+                          "#STATIC, SHARED, or MODULE may be given to specify the type of library to be created.\n"
+                          "#By default we are taking it as SHARED\n"
+                         f"add_library(HelloWorld SHARED plugins/{args.add_plugin[0]})\n"
+                          "#set_property sets the compiler for compliling the plugin.\n"
+                          "set_property(TARGET HelloWorld PROPERTY CXX_STANDARD 17)\n"
+                          "#target_link_libraries will specify librarires required by plugin.\n"
+                          "#You can have PUBLIC or PRIVATE targets based on requirements\n"
+                          "target_link_libraries(HelloWorld PUBLIC\n"
+                          " ignition-gazebo${IGN_GAZEBO_VER}::ignition-gazebo${IGN_GAZEBO_VER}\n"
+                          " ignition-common${IGN_COMMON_VER}::ignition-common${IGN_COMMON_VER}\n"
+                          " ignition-plugin${IGN_PLUGIN_VER}::ignition-plugin${IGN_PLUGIN_VER}\n"
+                          ")\n"
+                          "#These lines will install the plugin in desired location.\n"
+                          "install(\n"
+                          "  TARGETS HelloWorld\n"
+                          "  DESTINATION lib)\n")
+    if args.add_executable:
+        CMakeLists.write("\n#These lines will add and install the example executable\n"
+                          "#add_executable adds a executable target to be built from the source files.\n"
+                          f"add_executable(Hello src/{args.add_executable[0]})\n"
+                          "#set_property sets the compiler for compliling the executable.\n"
+                          "set_property(TARGET Hello PROPERTY CXX_STANDARD 17)\n"
+                          "#target_link_libraries will specify librarires required by executable.\n"
+                          "#You can have PUBLIC or PRIVATE targets based on requirements\n"
+                          "target_link_libraries(Hello\n"
+                          " PUBLIC ignition-gazebo${IGN_GAZEBO_VER}::ignition-gazebo${IGN_GAZEBO_VER}\n"
+                          ")\n\n"
+                          "#These lines will install the executables in desired location.\n"
+                          "install(\n"
+                          " TARGETS Hello\n"
+                          " DESTINATION bin)\n")
 
     if args.built_type[0] == "ament_cmake":
         CMakeLists.write(   "\n#Since,the package is amnet dependent we will find and call ament_cmake.\n\n"
@@ -185,6 +223,18 @@ if __name__ == "__main__":
         nargs=1,
         help="will the package depend on standard ignition packages",
         default=["True"])
+    parser.add_argument(
+        "-add_plugin",
+        metavar="plugin_name",
+        type=str,
+        nargs=1,
+        help="will add an example plugin with required name")
+    parser.add_argument(
+        "-add_executable",
+        metavar="executable_name",
+        type=str,
+        nargs=1,
+        help="will add an example executable code with required name")
 
     #Creates required files based on arguments given
     args = parser.parse_args()
@@ -200,3 +250,12 @@ if __name__ == "__main__":
         os.makedirs(package_path+"/worlds")
         os.makedirs(package_path+"/models")
         os.makedirs(package_path+"/launch")
+    if args.add_executable:
+        create_executable(package_path,args.add_executable[0])
+    if args.add_plugin:
+        create_plugin(package_path,args.add_plugin[0])
+
+
+
+
+
